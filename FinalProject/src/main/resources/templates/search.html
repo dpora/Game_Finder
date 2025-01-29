@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <title>Search Games</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="container mt-5">
+  <h1 class="mb-4">Search for Video Games</h1>
+
+  <!-- Search Bar -->
+  <div class="input-group mb-4">
+    <input type="text" id="searchBar" class="form-control" placeholder="Search for games...">
+    <button id="searchButton" class="btn btn-primary">Search</button>
+  </div>
+
+  <!-- Filters and Sorting -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <select id="filterGenre" class="form-select">
+        <option value="">All Genres</option>
+        <!-- Genre options will be dynamically populated -->
+      </select>
+    </div>
+<!--    <div class="col-md-3">-->
+<!--      <input type="text" id="filterDeveloper" class="form-control" placeholder="Developer">-->
+<!--    </div>-->
+    <div class="col-md-3">
+      <select id="filterPlatform" class="form-select">
+        <option value="">All Platforms</option>
+        <!-- Platform options will be dynamically populated -->
+      </select>
+    </div>
+    <div class="col-md-3">
+      <input type="text" id="filterRating" class="form-control" placeholder="Rating">
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <select id="sortBy" class="form-select">
+        <option value="name">Sort by Name</option>
+        <option value="involved_companies">Sort by Developer</option>
+        <option value="rating">Sort by Rating</option>
+        <option value="release_dates">Release Date</option>
+
+      </select>
+    </div>
+    <div class="col-md-6">
+      <select id="sortOrder" class="form-select">
+        <option value="asc">Ascending</option>
+        <option value="desc">Descending</option>
+      </select>
+    </div>
+  </div>
+
+  <ul class="list-group" id="gameList">
+    <!-- List of games will be dynamically populated -->
+  </ul>
+</div>
+
+<script>
+  let isFetching = false;
+  let offset = 0;
+  const limit = 10;
+  let searchQuery = ''; // Holds the current search term
+  const gameList = document.getElementById('gameList');
+  const apiUrl = '/api/games';
+
+  // Function to clear the game list and reset offset
+  const clearGames = () => {
+    gameList.innerHTML = '';
+    offset = 0;
+  };
+
+  // Function to fetch games and append them to the list
+  const fetchGames = async () => {
+    if (isFetching) return;
+    isFetching = true;
+
+    try {
+      const timestamp = new Date().getTime();
+      const queryParam = searchQuery ? `&query=${encodeURIComponent(searchQuery)}` : '';
+      const filterGenre = document.getElementById('filterGenre').value;
+      // const filterDeveloper = document.getElementById('filterDeveloper').value;
+      const filterPlatform = document.getElementById('filterPlatform').value;
+      const filterRating = document.getElementById('filterRating').value;
+      const sortBy = document.getElementById('sortBy').value;
+      const sortOrder = document.getElementById('sortOrder').value;
+
+      const response = await fetch(`${apiUrl}?limit=${limit}&offset=${offset}${queryParam}&filterGenre=${filterGenre}&filterPlatform=${filterPlatform}&filterRating=${filterRating}&sortBy=${sortBy}&sortOrder=${sortOrder}&_=${timestamp}`);
+      const games = await response.json();
+
+      console.log(`Received ${games.length} games for offset: ${offset}, query: "${searchQuery}"`);
+
+      if (games.length === 0) {
+        console.log('No more games to load.');
+        return;
+      }
+
+      games.forEach(game => {
+        const listItem = document.createElement('li');
+        listItem.className = 'list-group-item d-flex align-items-center';
+
+        const img = document.createElement('img');
+        img.src = game.imageUrl || 'placeholder.jpg';
+        img.alt = game.gameName;
+        img.className = 'img-thumbnail me-3';
+        img.style.width = '100px';
+
+        const details = document.createElement('div');
+        details.innerHTML = `
+        <a href="/game/${game.gameId}"><strong>${game.gameName}</strong></a>
+        <p>Genre: ${game.genre || 'Unknown'}</p>
+        <p>Platform: ${game.platform || 'Unknown'}</p>
+        <p><strong>Companies:</strong> ${game.involvedCompanies || 'Unknown'}</p>
+        <p>Rating: ${game.rating || 'N/A'}</p>
+      `;
+
+        listItem.appendChild(img);
+        listItem.appendChild(details);
+        gameList.appendChild(listItem);
+      });
+
+      offset += limit;
+    } catch (error) {
+      console.error('Error fetching games:', error);
+    } finally {
+      isFetching = false;
+    }
+  };
+
+  // Function to fetch and populate genres
+  const fetchGenres = async () => {
+    try {
+      const response = await fetch('/api/genres');
+      const genres = await response.json(); // Array of strings
+      console.log('Fetched genres:', genres); // Debugging statement
+      const genreSelect = document.getElementById('filterGenre');
+      genres.forEach(genre => {
+        const option = document.createElement('option');
+        option.value = genre; // Use the string directly
+        option.textContent = genre; // Display the string directly
+        genreSelect.appendChild(option);
+      });
+    } catch (error) {
+      console.error('Error fetching genres:', error);
+    }
+  };
+
+
+  // Function to fetch and populate platforms
+  const fetchPlatforms = async () => {
+    try {
+      const response = await fetch('/api/platforms');
+      const platforms = await response.json(); // Array of strings
+      console.log('Fetched platforms:', platforms); // Debugging statement
+      const platformSelect = document.getElementById('filterPlatform');
+      platforms.forEach(platform => {
+        const option = document.createElement('option');
+        option.value = platform; // Use the string directly
+        option.textContent = platform; // Display the string directly
+        platformSelect.appendChild(option);
+      });
+    } catch (error) {
+      console.error('Error fetching platforms:', error);
+    }
+  };
+
+
+  // Search Button Click Handler
+  document.getElementById('searchButton').addEventListener('click', () => {
+    searchQuery = document.getElementById('searchBar').value.trim();
+    clearGames(); // Clear existing results
+    fetchGames(); // Fetch new results based on search query
+  });
+
+  // Filter and Sort Change Handlers
+  document.getElementById('filterGenre').addEventListener('change', () => {
+    clearGames();
+    fetchGames();
+  });
+  // document.getElementById('filterDeveloper').addEventListener('change', () => {
+  //   clearGames();
+  //   fetchGames();
+  // });
+  document.getElementById('filterPlatform').addEventListener('change', () => {
+    clearGames();
+    fetchGames();
+  });
+  document.getElementById('filterRating').addEventListener('change', () => {
+    clearGames();
+    fetchGames();
+  });
+  document.getElementById('sortBy').addEventListener('change', () => {
+    clearGames();
+    fetchGames();
+  });
+  document.getElementById('sortOrder').addEventListener('change', () => {
+    clearGames();
+    fetchGames();
+  });
+
+  // Infinite Scroll Listener
+  window.addEventListener('scroll', () => {
+    if (window.innerHeight + window.scrollY >= document.body.offsetHeight) {
+      fetchGames();
+    }
+  });
+
+  // Initial Load
+  fetchGenres();
+  fetchPlatforms();
+  fetchGames();
+</script>
+</body>
+</html>
